@@ -1,97 +1,122 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# HealthKit React Native App 🍎⌚
 
-# Getting Started
+Apple HealthKit과 Apple Watch 연동을 통한 종합적인 건강 데이터 모니터링 앱입니다.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## 📱 주요 기능
 
-## Step 1: Start Metro
+### HealthKit 데이터 수집
+- **심박수**: 실시간 및 과거 심박수 데이터
+- **안정시 심박수**: 일별 안정시 심박수 추이
+- **걸음 수**: 일일 걸음 수 추적
+- **활동 에너지**: 소모된 칼로리 정보
+- **걷기/달리기 거리**: 일일 이동 거리
+- **혈압**: 수축기/이완기 혈압 기록
+- **체온**: 체온 측정 데이터
+- **산소포화도**: 혈중 산소포화도
+- **수면 분석**: 수면 시간 및 패턴
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### Apple Watch 연동 (데모)
+- Watch 연결 상태 모니터링
+- 실시간 데이터 동기화
+- Watch 앱 설치 상태 확인
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 사용자 인터페이스
+- **다크 모드 지원**: 시스템 설정에 따른 자동 테마 변경
+- **카드 기반 UI**: 데이터별로 구분된 직관적인 카드 레이아웃
+- **새로고침 기능**: Pull-to-refresh 및 수동 새로고침
+- **실시간 업데이트**: 마지막 업데이트 시간 표시
 
-```sh
-# Using npm
-npm start
+## 🚀 설치 및 실행
 
-# OR using Yarn
-yarn start
+### 사전 요구사항
+- Node.js 18+
+- React Native CLI
+- Xcode (iOS 개발용)
+- iOS 시뮬레이터 또는 실제 iOS 기기
+
+### 설치
+```bash
+# 의존성 설치
+npm install
+
+# iOS Pod 설치
+cd ios && pod install && cd ..
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+### 실행
+```bash
+# iOS 시뮬레이터에서 실행
 npm run ios
 
-# OR using Yarn
-yarn ios
+# 실제 기기에서 실행 (기기 연결 후)
+npm run ios -- --device
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## ⚙️ 설정
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### HealthKit 권한
+앱이 HealthKit 데이터에 접근하려면 다음 권한이 필요합니다:
 
-## Step 3: Modify your app
+1. **iOS 설정 > 개인정보 보호 및 보안 > 건강**에서 앱 권한 설정
+2. 첫 실행 시 권한 요청 팝업에서 허용
 
-Now that you have successfully run the app, let's make changes!
+### Apple Watch 연동
+현재 버전은 데모 구현을 제공합니다. 실제 Apple Watch 연동을 위해서는:
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+1. **WatchOS 앱 개발**: Apple Watch용 앱 개발
+2. **WatchConnectivity 프레임워크**: iOS와 WatchOS 간 통신 설정
+3. **Watch 앱 설치**: 개발된 앱을 Apple Watch에 설치
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## 📊 데이터 구조
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+### HealthData Interface
+```typescript
+interface HealthData {
+  heartRate: Array<{value: number, startDate: string}>;
+  steps: number | null;
+  bloodPressure: Array<{systolic: number, diastolic: number, startDate: string}>;
+  bodyTemperature: Array<{value: number, startDate: string}>;
+  oxygenSaturation: Array<{value: number, startDate: string}>;
+  sleepAnalysis: Array<{value: string, startDate: string, endDate: string}>;
+  activeEnergy: number | null;
+  restingHeartRate: Array<{value: number, startDate: string}>;
+  walkingDistance: number | null;
+}
+```
 
-## Congratulations! :tada:
+## 🔧 기술 스택
 
-You've successfully run and modified your React Native App. :partying_face:
+- **React Native 0.79.2**: 크로스 플랫폼 모바일 앱 프레임워크
+- **TypeScript**: 타입 안전성을 위한 정적 타입 언어
+- **react-native-health 1.19.0**: HealthKit 연동 라이브러리
+- **react-native-watch-connectivity**: Apple Watch 연동 라이브러리
 
-### Now what?
+## 📱 화면 구성
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+### 메인 대시보드
+1. **헤더**: 앱 제목, 마지막 업데이트 시간, 새로고침 버튼
+2. **Apple Watch 연결 상태**: 연결 상태 및 데이터 요청 기능
+3. **오늘의 활동 요약**: 걸음 수, 칼로리, 이동 거리
+4. **생체 데이터 카드들**: 각종 건강 데이터 표시
+5. **푸터**: 사용법 안내
 
-# Troubleshooting
+### 데이터 카드별 정보
+- **심박수**: 최근 3개 측정값과 시간
+- **안정시 심박수**: 최근 2일간의 데이터
+- **혈압**: 최근 2개 측정값 (수축기/이완기)
+- **산소포화도**: 백분율로 표시
+- **체온**: 섭씨 온도로 표시
+- **수면 분석**: 수면 시간과 패턴
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## 🎨 UI/UX 특징
 
-# Learn More
+### 반응형 디자인
+- 다크 모드 자동 적용
+- 시각적 구분을 위한 이모지 아이콘 사용
+- 카드 기반 레이아웃으로 정보 구조화
 
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+### 사용자 경험
+- Pull-to-refresh로 쉬운 데이터 업데이트
+- 로딩 상태 표시
+- 에러 처리 및 사용자 알림
+- 데이터 없음 상태 처리
