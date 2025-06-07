@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from './colors';
-import { FocusAnalysisAPI } from '../services/FocusAnalysisAPI';
 import GaugeChart from './GaugeChart';
 import FocusHighlights from './FocusHighlights';
+import HeartRateChart from './HeartRateChart'; // 새 컴포넌트 임포트
+import { fetchHealthData } from '../services/HealthKitService';
+import { FocusAnalysisAPI } from '../services/FocusAnalysisAPI';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -33,6 +34,8 @@ const Dashboard = () => {
     weekly_trend: []
   });
 
+  const [healthData, setHealthData] = useState(null);
+
   // API 데이터 반영 (더미 데이터와 병행)
   useEffect(() => {
     const fetchFocusPattern = async () => {
@@ -52,6 +55,15 @@ const Dashboard = () => {
       }
     };
     fetchFocusPattern();
+  }, []);
+
+  useEffect(() => {
+    const loadHealthData = async () => {
+      const data = await fetchHealthData();
+      setHealthData(data);
+    };
+    
+    loadHealthData();
   }, []);
 
   // 날짜/시간
@@ -79,17 +91,17 @@ const Dashboard = () => {
     time: getTimeString(lowestFocusIndex)
   };
 
+  if (!healthData) return <Text>Loading...</Text>;
+
   return (
     <View style={[styles.root, {backgroundColor: '#fff'}]}>
       <StatusBar barStyle="dark-content" />
-      {/* 1. Top Navigation Bar */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* 1. Top Navigation Bar */}
         {/* 2. Summary Cards */}
         <View style={styles.summaryRow}>
+          {/* 집중도 카드 */}
           <View style={[styles.card, styles.focusCard]}>
-            <View style={styles.focusCardHeader}>
-              <Text style={styles.focusCardTitle}>현재 집중 상태</Text>
-            </View>
             <View style={styles.focusCardContent}>
               <View style={styles.gaugeContainer}>
                 <GaugeChart
@@ -167,6 +179,30 @@ const Dashboard = () => {
           lowestFocus={lowestFocus}
           averageFocus={averageFocus}
         />
+        {/* 심박수 기간별 차트 */}
+        <HeartRateChart initialPeriod="day" />
+        {/* 건강 데이터 요약 차트 (기존) */}
+        <View style={[styles.card, styles.chartCard]}>
+          <Text style={styles.chartTitle}>건강 데이터 요약</Text>
+          <LineChart
+            data={{
+              labels: ['Steps', 'Heart Rate', 'Sleep'],
+              datasets: [{ data: [healthData.steps, healthData.heartRate, healthData.sleep] }],
+            }}
+            width={screenWidth * 0.85}
+            height={200}
+            yAxisLabel=""
+            chartConfig={{
+              backgroundColor: '#fff',
+              backgroundGradientFrom: '#fff',
+              backgroundGradientTo: '#fff',
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
+            }}
+            bezier
+            style={{ marginVertical: 8, borderRadius: 16 }}
+          />
+        </View>
       </ScrollView>
     </View>
   );
