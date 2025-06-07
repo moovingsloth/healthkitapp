@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
+import { COLORS } from './colors';
 
 interface GaugeChartProps {
   value: number;
@@ -8,9 +9,11 @@ interface GaugeChartProps {
 }
 
 const GaugeChart: React.FC<GaugeChartProps> = ({ value, max = 100 }) => {
-  let color = '#27ae60';
-  if (value < 60) color = '#e67e22';
-  if (value < 40) color = '#e74c3c';
+  // 색상 팔레트 수정: 높은 값(good)에 primary 색상 사용
+  let color = COLORS.primary;  // 높은 값에 primary 색상 사용 (시간별 집중도 차트와 일치)
+  if (value < 60) color = COLORS.point;  // 중간 값에 point(코랄) 색상 사용
+  if (value < 40) color = COLORS.bad;    // 낮은 값에 bad(레드) 색상 사용
+  
   return (
     <View style={styles.container}>
       <AnimatedCircularProgress
@@ -18,7 +21,7 @@ const GaugeChart: React.FC<GaugeChartProps> = ({ value, max = 100 }) => {
         width={16}
         fill={Math.min(100, (value / max) * 100)}
         tintColor={color}
-        backgroundColor="#eee"
+        backgroundColor={COLORS.border}
         rotation={0}
         lineCap="round"
       >
@@ -43,9 +46,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#888',
+    color: COLORS.subText,  // 기존 #888을 subText 색상으로 변경
     marginTop: 4,
   },
 });
 
-export default GaugeChart; 
+export default GaugeChart;

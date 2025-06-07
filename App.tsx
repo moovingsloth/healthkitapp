@@ -18,9 +18,16 @@ const Stack = createStackNavigator();
 function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Dashboard">
-        <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'FocusTrack 대시보드' }} />
-        <Stack.Screen name="Focus" component={FocusScreen} options={{ title: 'AI 집중력 분석' }} />
+      <Stack.Navigator initialRouteName="Dashboard" >
+        {/* <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'FocusTrack 대시보드' }} /> */}
+        <Stack.Screen name="Dashboard" component={Dashboard}           options={{ 
+            title: '집중력 대시보드',
+            headerTitleAlign: 'center', // 제목 중앙 정렬
+          }}  />
+        <Stack.Screen name="Focus" component={FocusScreen} options={{ 
+            title: 'AI 집중력 분석',
+            headerTitleAlign: 'center', // 제목 중앙 정렬
+          }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
