@@ -22,21 +22,42 @@ const apiClient = axios.create({
 // 인터셉터 설정
 apiClient.interceptors.request.use(
   async (config) => {
+    console.log('🚀 API Request:', {
+      url: config.url,
+      method: config.method,
+      params: config.params,
+      headers: config.headers,
+      data: config.data
+    });
     const token = await AsyncStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
+    console.error('❌ API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // 응답 인터셉터
 apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  (response) => {
+    console.log('✅ API Response:', {
+      url: response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
+  async (error: any) => {
+    console.error('❌ API Response Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
     if (error.response?.status === 401) {
       // 토큰 만료 처리
       await AsyncStorage.removeItem('auth_token');
@@ -52,7 +73,7 @@ export interface BiometricData {
   timestamp: string;
   heart_rate: number;
   sleep_hours: number;
-  steps: number;
+    steps: number;
   stress_level: number;
   activity_level: number;
   caffeine_intake: number;
@@ -106,7 +127,7 @@ export interface BiometricDataFilter {
   metrics?: Array<keyof BiometricData>;
 }
 
-class FocusAnalysisAPI {
+export class FocusAnalysisAPI {
   
   /**
    * 생체 데이터를 백엔드로 전송하여 집중력 예측
@@ -165,12 +186,27 @@ class FocusAnalysisAPI {
     endDate?: string
   ): Promise<FocusAnalysis> {
     try {
+      console.log('🔍 getUserFocusPattern 호출:', {
+        userId,
+        startDate,
+        endDate,
+        url: `/api/user/${userId}/focus-pattern`,
+        params: { start_date: startDate, end_date: endDate }
+      });
+
       const response = await apiClient.get(`/api/user/${userId}/focus-pattern`, {
         params: { start_date: startDate, end_date: endDate }
       });
+
+      console.log('✅ getUserFocusPattern 응답:', response.data);
       return response.data;
     } catch (error) {
-      console.error('❌ 집중력 패턴 조회 오류:', error);
+      console.error('❌ getUserFocusPattern 오류:', {
+        userId,
+        startDate,
+        endDate,
+        error: error.response?.data || error.message
+      });
       throw error;
     }
   }
@@ -234,18 +270,18 @@ class FocusAnalysisAPI {
   
   private calculateMockScore(data: BiometricData): number {
     let score = 70; // 기본 점수
-
+    
     // 수면 시간 기반 조정
     if (data.sleep_hours < 6) score -= 10;
     else if (data.sleep_hours > 8) score -= 5;
-
+    
     // 스트레스 레벨 기반 조정
     score -= data.stress_level * 2;
-
+    
     // 활동량 기반 조정
     if (data.steps < 5000) score -= 5;
     else if (data.steps > 10000) score += 5;
-
+    
     // 카페인 섭취 기반 조정
     if (data.caffeine_intake > 200) score -= 5;
 
@@ -284,7 +320,7 @@ class FocusAnalysisAPI {
     
     return recommendations;
   }
-
+  
   // 생체 데이터 조회
   async getBiometricData(
     userId: string,
@@ -336,7 +372,7 @@ class FocusAnalysisAPI {
       stress_level_threshold?: number;
       activity_level_threshold?: number;
       notification_enabled: boolean;
-    }
+  }
   ): Promise<void> {
     try {
       await apiClient.put(`/api/users/${userId}/notification-settings`, settings);

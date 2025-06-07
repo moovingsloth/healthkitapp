@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
-import focusAnalysisAPI, { BiometricData, FocusPrediction } from '../services/FocusAnalysisAPI';
+import focusAnalysisAPI, { BiometricData, ConcentrationPrediction } from '../services/FocusAnalysisAPI';
 
 interface ConcentrationPredictorProps {
   biometricData: BiometricData;
@@ -8,7 +8,7 @@ interface ConcentrationPredictorProps {
 }
 
 const ConcentrationPredictor: React.FC<ConcentrationPredictorProps> = ({ biometricData, userId }) => {
-  const [prediction, setPrediction] = useState<FocusPrediction | null>(null);
+  const [prediction, setPrediction] = useState<ConcentrationPrediction | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
@@ -31,7 +31,11 @@ const ConcentrationPredictor: React.FC<ConcentrationPredictorProps> = ({ biometr
       setPrediction(result);
       
       // 집중도 패턴 분석
-      const patternAnalysis = await focusAnalysisAPI.getUserFocusPattern(userId);
+      // 테스트용: 2024년 날짜로 하드코딩
+      const startDate = "2024-06-06T00:00:00";
+      const endDate = "2024-06-08T00:00:00";
+      console.log('집중력 패턴 분석 요청:', startDate, endDate);
+      const patternAnalysis = await focusAnalysisAPI.getUserFocusPattern(userId, startDate, endDate);
       setAnalysis(patternAnalysis);
       
     } catch (err) {
@@ -95,7 +99,7 @@ const ConcentrationPredictor: React.FC<ConcentrationPredictorProps> = ({ biometr
           
           <View style={styles.recommendationsContainer}>
             <Text style={styles.recommendationsTitle}>추천사항</Text>
-            {prediction.recommendations.map((rec, index) => (
+            {prediction.recommendations.map((rec: any, index: any) => (
               <Text key={index} style={styles.recommendationItem}>
                 • {rec}
               </Text>
