@@ -35,9 +35,22 @@ const permissions = {
 const FocusScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
+  const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_MS / 1000);
   const isDarkMode = useColorScheme() === 'dark';
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 타이머: 1초마다 남은 시간 갱신
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // 자동 분석 주기
   useEffect(() => {
     initializeHealthKit();
     fetchHealthData(); // 최초 1회 실행
@@ -64,6 +77,7 @@ const FocusScreen: React.FC = () => {
 
   const fetchHealthData = async () => {
     setIsLoading(true);
+    setSecondsLeft(REFRESH_INTERVAL_MS / 1000); // 타이머 리셋
     try {
       const now = new Date();
       const options: HealthInputOptions = {
@@ -176,6 +190,9 @@ const FocusScreen: React.FC = () => {
         </Text>
         <Text style={{ color: isDarkMode ? '#fff' : '#333', marginTop: 8, fontSize: 14 }}>
           {`분석 주기: ${REFRESH_INTERVAL_MINUTES}분 (코드에서 변경 가능)`}
+        </Text>
+        <Text style={{ color: isDarkMode ? '#fff' : '#333', marginTop: 4, fontSize: 15, fontWeight: 'bold' }}>
+          {`다음 자동 분석까지 남은 시간: ${Math.floor(secondsLeft / 60)}분 ${secondsLeft % 60}초`}
         </Text>
         <View style={{ marginTop: 16 }}>
           <Text style={{ color: isDarkMode ? '#aaa' : '#666', fontSize: 13, marginBottom: 4 }}>

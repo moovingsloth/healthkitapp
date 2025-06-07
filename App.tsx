@@ -8,22 +8,22 @@
  */
 
 import React from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import Dashboard from './components/Dashboard';
 import FocusScreen from './components/FocusScreen';
 
-function App(): React.JSX.Element {
+const Stack = createStackNavigator();
+
+function App() {
   return (
-    <SafeAreaView style={styles.container}>
-      <FocusScreen />
-    </SafeAreaView>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Dashboard">
+        <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'FocusTrack 대시보드' }} />
+        <Stack.Screen name="Focus" component={FocusScreen} options={{ title: 'AI 집중력 분석' }} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-});
 
 export default App;

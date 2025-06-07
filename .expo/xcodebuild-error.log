@@ -1,0 +1,9 @@
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, id:2FAFDA12-38A2-4E44-8C54-039FBE789B4B, OS:18.3.1, name:iPhone 16 Pro }
+{ platform:iOS Simulator, id:2FAFDA12-38A2-4E44-8C54-039FBE789B4B, OS:18.3.1, name:iPhone 16 Pro }
+** BUILD FAILED **
+
+
+The following build commands failed:
+	Building workspace HealthKitApp with scheme HealthKitApp and configuration Debug
+(1 failure)

@@ -7,7 +7,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // FastAPI 백엔드 API 기본 URL (로컬 개발 환경)
-const API_BASE_URL = 'http://localhost:8000';
+// const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://174.138.40.56:8000';
 
 // API 클라이언트 설정
 const apiClient = axios.create({
@@ -83,6 +84,28 @@ export interface UserProfile {
   activity_goal: number;
 }
 
+// 생체 데이터 시간 범위 타입
+export type TimeRange = 'short' | 'medium' | 'long';
+
+// 생체 데이터 응답 인터페이스
+export interface BiometricDataResponse {
+  data: BiometricData[];
+  summary: {
+    average_heart_rate: number;
+    total_sleep_hours: number;
+    total_steps: number;
+    average_stress_level: number;
+    average_activity_level: number;
+  };
+}
+
+// 생체 데이터 필터 옵션
+export interface BiometricDataFilter {
+  startDate?: string;
+  endDate?: string;
+  metrics?: Array<keyof BiometricData>;
+}
+
 class FocusAnalysisAPI {
   
   /**
@@ -92,12 +115,19 @@ class FocusAnalysisAPI {
     try {
       console.log('🧠 집중력 예측 요청 중...', data);
       
-      // 필수 필드 추가
+      // 필수 필드 추가 (서버 요구사항에 맞게 필드명 매핑)
       const requestData = {
-        ...data,
-        user_id: 'user123', // 임시 사용자 ID
-        timestamp: new Date().toISOString()
+        user_id: data.user_id || 'user123',
+        date: data.timestamp || new Date().toISOString(),
+        heart_rate_avg: data.heart_rate || 0,
+        heart_rate_resting: 0, // 필요시 실제 데이터로 대체
+        sleep_duration: data.sleep_hours || 0,
+        sleep_quality: 0, // 필요시 실제 데이터로 대체
+        steps_count: data.steps || 0,
+        active_calories: 0 // 필요시 실제 데이터로 대체
       };
+      
+      console.log('API 요청 데이터:', requestData);
       
       // FastAPI 엔드포인트로 데이터 전송
       const response = await apiClient.post('/predict/concentration', requestData);
@@ -253,6 +283,67 @@ class FocusAnalysisAPI {
     }
     
     return recommendations;
+  }
+
+  // 생체 데이터 조회
+  async getBiometricData(
+    userId: string,
+    timeRange: TimeRange,
+    filter?: BiometricDataFilter
+  ): Promise<BiometricDataResponse> {
+    try {
+      const response = await apiClient.get(`/api/biometric-data/${userId}`, {
+        params: {
+          time_range: timeRange,
+          ...filter,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching biometric data:', error);
+      throw error;
+    }
+  }
+
+  // 생체 데이터 내보내기
+  async exportBiometricData(
+    userId: string,
+    format: 'csv' | 'json',
+    filter?: BiometricDataFilter
+  ): Promise<Blob> {
+    try {
+      const response = await apiClient.get(`/api/biometric-data/${userId}/export`, {
+        params: {
+          format,
+          ...filter,
+        },
+        responseType: 'blob',
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error exporting biometric data:', error);
+      throw error;
+    }
+  }
+
+  // 알림 설정 업데이트
+  async updateNotificationSettings(
+    userId: string,
+    settings: {
+      heart_rate_threshold?: number;
+      sleep_hours_threshold?: number;
+      steps_threshold?: number;
+      stress_level_threshold?: number;
+      activity_level_threshold?: number;
+      notification_enabled: boolean;
+    }
+  ): Promise<void> {
+    try {
+      await apiClient.put(`/api/users/${userId}/notification-settings`, settings);
+    } catch (error) {
+      console.error('Error updating notification settings:', error);
+      throw error;
+    }
   }
 }
 
