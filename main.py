@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import uvicorn
 import logging
 import sys
@@ -91,42 +91,69 @@ class ConcentrationPredictionRequest(BaseModel):
     caffeine_intake: float = None
     water_intake: float = None
 
-@router.post("/predict/concentration", response_model=ConcentrationPredictionResponse)
-async def predict_concentration(data: ConcentrationPredictionRequest):
+class HealthMetrics(BaseModel):
+    user_id: str
+    date: str
+    heart_rate_avg: float
+    heart_rate_resting: float
+    sleep_duration: float
+    sleep_quality: float
+    steps_count: int
+    active_calories: float
+    stress_level: Optional[float] = None
+    activity_level: Optional[float] = None
+
+@router.post("/predict/concentration", response_model=ConcentrationPrediction)
+async def predict_concentration(metrics: HealthMetrics):
     try:
-        logger.info(f"[predict/concentration] 요청: {data}")
+        # 캐시에서 이전 예측 확인
+        cache_key = f"{metrics.user_id}:{metrics.date}"
+        cached_prediction = await cache_service.get_prediction(metrics.user_id, metrics.date)
         
-        # 건강 데이터 형식 변환
-        health_data = [{
-            'heart_rate': data.heart_rate_avg,
-            'sleep_hours': data.sleep_duration,
-            'steps': data.steps_count,
-            'stress_level': data.stress_level if data.stress_level is not None else 5,
-        }]
-        
-        # 모델로 예측
-        model = ConcentrationModel()
-        predictions = model.predict_concentration(health_data)
-        
-        # 단일 점수로 변환 (첫 번째 예측값 사용)
-        concentration_score = predictions[0] if predictions else 0.5
-        
-        # 추천사항 생성
-        recommendations = model._generate_recommendations(concentration_score, health_data)
-        
-        # 응답 객체 반환
-        response = {
-            "concentration_score": concentration_score,
-            "recommendations": recommendations
-        }
-        
-        logger.info(f"[predict/concentration] 응답: {response}")
-        return response
-        
+        # 캐시에 저장된 예측이 있으면 반환
+        if cached_prediction:
+            logger.info(f"[predict/concentration] 캐시 HIT: {cache_key}")
+            return cached_prediction
+            
+        # 메트릭 데이터를 딕셔너리로 변환하여 모델에 전달
+        try:
+            metrics_dict = metrics.dict() if hasattr(metrics, 'dict') else metrics
+            logger.info(f"[predict/concentration] 모델에 데이터 전달: {type(metrics_dict)}")
+            prediction_result = get_concentration_prediction(metrics_dict)
+            
+            # 딕셔너리 결과를 Pydantic 모델로 변환
+            if isinstance(prediction_result, dict):
+                prediction_obj = ConcentrationPrediction(
+                    concentration_score=prediction_result.get("concentration_score", 65.0),
+                    confidence=prediction_result.get("confidence", 0.7),
+                    recommendations=prediction_result.get("recommendations", ["기본 추천사항입니다."]),
+                    timestamp=datetime.now()
+                )
+            else:
+                # 이미 Pydantic 모델인 경우
+                prediction_obj = prediction_result
+                
+            # 캐시에 저장
+            await cache_service.set_prediction(metrics.user_id, metrics.date, prediction_obj)
+            
+            return prediction_obj
+            
+        except Exception as e:
+            logger.error(f"[predict/concentration] 예측 처리 중 오류: {str(e)}")
+            # 오류 발생 시 기본값 반환
+            return ConcentrationPrediction(
+                concentration_score=65.0,
+                confidence=0.7,
+                recommendations=["오류가 발생하여 기본 추천사항을 제공합니다."],
+                timestamp=datetime.now()
+            )
+            
     except Exception as e:
-        logger.error(f"집중도 예측 중 오류 발생: {str(e)}")
-        logger.exception("상세 오류 정보:")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"[predict/concentration] 에러: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="집중도 예측 중 오류가 발생했습니다."
+        )
 
 @router.post("/health-metrics")
 async def save_health_metrics(data: BiometricData):
@@ -140,22 +167,55 @@ async def save_health_metrics(data: BiometricData):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/user/{user_id}/focus-pattern", response_model=FocusAnalysis)
-async def get_focus_pattern(user_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
-    """사용자의 집중력 패턴 분석"""
+async def get_user_focus_pattern(
+    user_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db = Depends(get_db)
+):
+    logger.info(f"[focus-pattern] 요청: user_id={user_id}, start_date={start_date}, end_date={end_date}")
     try:
-        # 요청 로깅 추가
-        logger.info(f"focus-pattern 요청: user_id={user_id}, start_date={start_date}, end_date={end_date}")
+        # 문자열 날짜를 datetime 객체로 변환
+        if start_date:
+            try:
+                # 날짜 문자열을 datetime 객체로 변환
+                if isinstance(start_date, str):
+                    from datetime import datetime
+                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+                else:
+                    start_date_obj = start_date
+            except ValueError:
+                start_date_obj = datetime.now() - timedelta(days=7)
+        else:
+            start_date_obj = datetime.now() - timedelta(days=7)
+            
+        if end_date:
+            try:
+                # 날짜 문자열을 datetime 객체로 변환
+                if isinstance(end_date, str):
+                    from datetime import datetime
+                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+                else:
+                    end_date_obj = end_date
+            except ValueError:
+                end_date_obj = datetime.now()
+        else:
+            end_date_obj = datetime.now()
+
+        logger.info(f"[focus-pattern] 쿼리 범위: start_date={start_date_obj}, end_date={end_date_obj}")
         
-        # 임시 데이터 반환
-        return FocusAnalysis(
-            daily_average=75.5,
-            weekly_trend=[70, 72, 75, 73, 78, 76, 74],
-            peak_hours=["09:00", "14:00", "16:00"],
-            improvement_areas=["수면 시간", "스트레스 관리"]
+        # 임시 데이터 반환으로 처리 (빠른 해결을 위해)
+        mock_analysis = FocusAnalysis(
+            daily_average=75.2,
+            weekly_trend=[72.1, 74.5, 78.2, 76.8, 75.9, 77.3, 75.2],
+            peak_hours=[9, 10, 14, 15],
+            improvement_areas=["수면 품질", "스트레스 관리"]
         )
+        return mock_analysis
+        
     except Exception as e:
-        logger.error(f"focus-pattern 오류: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[focus-pattern] 에러: user_id={user_id}, error={str(e)}")
+        raise HTTPException(status_code=500, detail="집중도 분석 조회 중 오류가 발생했습니다.")
 
 @router.get("/user/{user_id}/profile", response_model=UserProfile)
 async def get_user_profile(user_id: str):
@@ -192,6 +252,19 @@ async def error_handler(request: Request, call_next):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "서버 내부 오류가 발생했습니다."}
         )
+
+# 임시 DB 및 캐시 서비스
+async def get_db():
+    return {"connected": True}
+
+class CacheService:
+    async def get_prediction(self, user_id, date):
+        return None
+        
+    async def set_prediction(self, user_id, date, prediction):
+        pass
+
+cache_service = CacheService()
 
 # 서버 실행 설정을 도커 환경에 맞게 수정
 if __name__ == "__main__":

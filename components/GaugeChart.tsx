@@ -29,7 +29,7 @@ const GaugeChart: React.FC<GaugeChartProps> = ({ value, max = 100 }) => {
           <Text style={[styles.value, { color }]}>{Math.round(value)}</Text>
         )}
       </AnimatedCircularProgress>
-      <Text style={styles.label}>/ {max}</Text>
+      <Text style={styles.label}>{Math.round(value)} / 100</Text>
     </View>
   );
 };
