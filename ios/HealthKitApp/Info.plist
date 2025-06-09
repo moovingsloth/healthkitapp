@@ -66,5 +66,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>RCTDevMenu</key>
+	<false/>
+	<key>RCTBundleURLProvider</key>
+	<string>main.jsbundle</string>
+	<key>RCT_METRO_PORT</key>
+	<string>8081</string>
 </dict>
 </plist>

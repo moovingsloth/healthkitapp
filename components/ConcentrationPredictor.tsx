@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
-import focusAnalysisAPI, { BiometricData, ConcentrationPrediction } from '../services/FocusAnalysisAPI';
+import { getUserFocusPattern, predictConcentration, saveHealthData } from '../services/FocusAnalysisAPI';
+
+interface BiometricData {
+  user_id: string;
+  date: string;
+  heart_rate_avg: number;
+  heart_rate_resting: number;
+  sleep_duration: number;
+  sleep_quality: number;
+  steps_count: number;
+  active_calories: number;
+  stress_level: number;
+  activity_level: number;
+}
+
+interface ConcentrationPrediction {
+  concentration_score: number;
+  confidence: number;
+  timestamp: string;
+  recommendations: string[];
+}
 
 interface ConcentrationPredictorProps {
   biometricData: BiometricData;
@@ -13,34 +33,62 @@ const ConcentrationPredictor: React.FC<ConcentrationPredictorProps> = ({ biometr
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
 
+  // 유틸리티 함수: 지정된 시간(ms) 동안 대기
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   // 집중도 예측 요청
-  const predictConcentration = async () => {
+  const requestPrediction = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // 생체 데이터 저장
-      await focusAnalysisAPI.saveBiometricData({
+      // 1. 먼저 건강 데이터 저장
+      const predictionData = {
         ...biometricData,
         user_id: userId,
-        timestamp: new Date().toISOString()
-      });
+      };
+
+      try {
+        console.log('서버에 건강 데이터 저장 중:', predictionData);
+        await saveHealthData(predictionData);  // 이 함수가 실행되고 있는지 확인
+        console.log('건강 데이터 저장 완료');
+        
+        // 서버에서 데이터를 처리할 시간 제공 (1초 대기)
+        await sleep(1000);
+      } catch (saveError) {
+        console.error('건강 데이터 저장 실패:', saveError);
+        // 저장 실패해도 예측은 시도
+      }
       
-      // 집중도 예측
-      const result = await focusAnalysisAPI.predictFocus(biometricData);
-      setPrediction(result);
+      // 2. API를 통한 집중도 예측
+      console.log('Sending prediction request with data:', predictionData);
+      const result = await predictConcentration(predictionData);
       
-      // 집중도 패턴 분석
-      // 테스트용: 2024년 날짜로 하드코딩
-      const startDate = "2024-06-06T00:00:00";
-      const endDate = "2024-06-08T00:00:00";
-      console.log('집중력 패턴 분석 요청:', startDate, endDate);
-      const patternAnalysis = await focusAnalysisAPI.getUserFocusPattern(userId, startDate, endDate);
+      // 결과 포맷팅
+      const formattedResult: ConcentrationPrediction = {
+        concentration_score: result.concentration_score || 65,
+        confidence: result.confidence || 0.7,
+        timestamp: new Date().toISOString(),
+        recommendations: result.recommendations || 
+                        [result.recommendation || "더 많은 데이터를 기록하면 더 정확한 예측이 가능합니다."]
+      };
+      
+      setPrediction(formattedResult);
+      
+      // 3. 집중도 패턴 분석 (건강 데이터 저장 후 호출)
+      const today = new Date().toISOString().split('T')[0];
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const startDate = oneWeekAgo.toISOString().split('T')[0];
+      const endDate = today;
+      
+      console.log(`Fetching focus pattern: ${startDate} to ${endDate}`);
+      const patternAnalysis = await getUserFocusPattern(userId, startDate, endDate);
       setAnalysis(patternAnalysis);
       
     } catch (err) {
-      console.error('집중도 예측 오류:', err);
-      setError('집중도 예측 중 오류가 발생했습니다. 다시 시도해주세요.');
+      console.error('집중도 패턴 데이터 조회 오류:', err);
+      setError('데이터 분석 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -48,7 +96,7 @@ const ConcentrationPredictor: React.FC<ConcentrationPredictorProps> = ({ biometr
 
   // 컴포넌트 마운트 시 예측 실행
   useEffect(() => {
-    predictConcentration();
+    requestPrediction();
   }, [biometricData]);
 
   // 집중도 점수에 따른 색상 결정
@@ -291,4 +339,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ConcentrationPredictor; 
+export default ConcentrationPredictor;

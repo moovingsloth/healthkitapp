@@ -1,11 +1,28 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uvicorn
+import logging
+import sys
+
+from app.model import ConcentrationModel, get_concentration_prediction
 
 app = FastAPI(title="HealthKit Focus Analysis API")
+router = APIRouter(prefix="/api")  # '/api' 접두사 추가
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # CORS 설정
 app.add_middleware(
@@ -54,29 +71,64 @@ user_profiles = {}
 biometric_data = {}
 focus_predictions = {}
 
-@app.post("/predict/concentration", response_model=ConcentrationPrediction)
-async def predict_concentration(data: BiometricData):
-    """생체 데이터를 기반으로 집중력 예측"""
-    try:
-        # 간단한 휴리스틱 기반 예측
-        score = calculate_concentration_score(data)
-        recommendations = generate_recommendations(data, score)
-        
-        prediction = ConcentrationPrediction(
-            concentration_score=score,
-            confidence=0.8,
-            recommendations=recommendations,
-            timestamp=datetime.now().isoformat()
-        )
-        
-        # 예측 결과 저장
-        focus_predictions[data.user_id] = prediction
-        
-        return prediction
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# 응답 모델 정의
+class ConcentrationPredictionResponse(BaseModel):
+    concentration_score: float
+    recommendations: List[str]
 
-@app.post("/api/health-metrics")
+# 요청 모델 정의 (기존 필드 유지)
+class ConcentrationPredictionRequest(BaseModel):
+    user_id: str
+    date: str
+    heart_rate_avg: float
+    heart_rate_resting: float
+    sleep_duration: float
+    sleep_quality: float
+    steps_count: int
+    active_calories: float
+    stress_level: float = None
+    activity_level: float = None
+    caffeine_intake: float = None
+    water_intake: float = None
+
+@router.post("/predict/concentration", response_model=ConcentrationPredictionResponse)
+async def predict_concentration(data: ConcentrationPredictionRequest):
+    try:
+        logger.info(f"[predict/concentration] 요청: {data}")
+        
+        # 건강 데이터 형식 변환
+        health_data = [{
+            'heart_rate': data.heart_rate_avg,
+            'sleep_hours': data.sleep_duration,
+            'steps': data.steps_count,
+            'stress_level': data.stress_level if data.stress_level is not None else 5,
+        }]
+        
+        # 모델로 예측
+        model = ConcentrationModel()
+        predictions = model.predict_concentration(health_data)
+        
+        # 단일 점수로 변환 (첫 번째 예측값 사용)
+        concentration_score = predictions[0] if predictions else 0.5
+        
+        # 추천사항 생성
+        recommendations = model._generate_recommendations(concentration_score, health_data)
+        
+        # 응답 객체 반환
+        response = {
+            "concentration_score": concentration_score,
+            "recommendations": recommendations
+        }
+        
+        logger.info(f"[predict/concentration] 응답: {response}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"집중도 예측 중 오류 발생: {str(e)}")
+        logger.exception("상세 오류 정보:")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/health-metrics")
 async def save_health_metrics(data: BiometricData):
     """생체 데이터 저장"""
     try:
@@ -87,10 +139,13 @@ async def save_health_metrics(data: BiometricData):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/user/{user_id}/focus-pattern", response_model=FocusAnalysis)
+@router.get("/user/{user_id}/focus-pattern", response_model=FocusAnalysis)
 async def get_focus_pattern(user_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """사용자의 집중력 패턴 분석"""
     try:
+        # 요청 로깅 추가
+        logger.info(f"focus-pattern 요청: user_id={user_id}, start_date={start_date}, end_date={end_date}")
+        
         # 임시 데이터 반환
         return FocusAnalysis(
             daily_average=75.5,
@@ -99,9 +154,10 @@ async def get_focus_pattern(user_id: str, start_date: Optional[str] = None, end_
             improvement_areas=["수면 시간", "스트레스 관리"]
         )
     except Exception as e:
+        logger.error(f"focus-pattern 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/user/{user_id}/profile", response_model=UserProfile)
+@router.get("/user/{user_id}/profile", response_model=UserProfile)
 async def get_user_profile(user_id: str):
     """사용자 프로필 조회"""
     try:
@@ -120,58 +176,23 @@ async def get_user_profile(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def calculate_concentration_score(data: BiometricData) -> float:
-    """집중력 점수 계산"""
-    score = 70.0  # 기본 점수
-    
-    # 수면 시간 기반 조정
-    if data.sleep_hours < 6:
-        score -= 10
-    elif data.sleep_hours > 8:
-        score -= 5
-    
-    # 스트레스 레벨 기반 조정
-    score -= data.stress_level * 2
-    
-    # 활동량 기반 조정
-    if data.steps < 5000:
-        score -= 5
-    elif data.steps > 10000:
-        score += 5
-    
-    # 카페인 섭취 기반 조정
-    if data.caffeine_intake > 200:
-        score -= 5
-    
-    # 수분 섭취 기반 조정
-    if data.water_intake < 1500:
-        score -= 5
-    
-    return max(0, min(100, score))
+@app.get("/status")
+async def status():
+    """서버 상태 확인"""
+    return {"status": "ok", "version": "1.0.0"}
 
-def generate_recommendations(data: BiometricData, score: float) -> List[str]:
-    """개선 추천사항 생성"""
-    recommendations = []
-    
-    if data.sleep_hours < 6:
-        recommendations.append("수면 시간을 늘리는 것이 좋습니다.")
-    
-    if data.stress_level > 5:
-        recommendations.append("스트레스 관리가 필요합니다.")
-    
-    if data.steps < 5000:
-        recommendations.append("활동량을 늘리는 것이 좋습니다.")
-    
-    if data.caffeine_intake > 200:
-        recommendations.append("카페인 섭취를 줄이는 것이 좋습니다.")
-    
-    if data.water_intake < 1500:
-        recommendations.append("수분 섭취를 늘리는 것이 좋습니다.")
-    
-    if score < 60:
-        recommendations.append("전반적인 건강 관리가 필요합니다.")
-    
-    return recommendations
+# 에러 핸들러 수정
+@app.middleware("http")
+async def error_handler(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        logger.error(f"Unhandled exception: {str(e)}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "서버 내부 오류가 발생했습니다."}
+        )
 
+# 서버 실행 설정을 도커 환경에 맞게 수정
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
